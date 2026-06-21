@@ -1,0 +1,24 @@
+{
+  "summary": "Smoke test of Du' Spicci backend and frontend. All backend endpoints (auth + jobs) and the headline magic auto-switch flow on the frontend work end-to-end.",
+  "tested_scope": ["backend", "frontend", "auth", "integration"],
+  "passed": [
+    "GET /api/jobs returns 4 seeded ads (Parioli/Centro/Prati)",
+    "POST /api/jobs without token returns 401",
+    "POST /api/auth/login with test@duspicci.it / test1234 returns access_token + user",
+    "GET /api/auth/me with Bearer returns the user",
+    "POST /api/jobs with auth returns full JobOut (owner_name='Tester')",
+    "After POST, GET /api/jobs returns the new ad at index 0 (sorted DESC by created_at)",
+    "POST /api/jobs/{id}/apply with auth returns {ok:true,message}",
+    "Frontend: Auth page renders Login/Register tabs; login flow lands on board-page",
+    "Frontend: Board renders job cards with apply-button and job-card-price",
+    "Frontend: toggle-offro reveals offer-job-form; submit publishes and AUTO-SWITCHES back to Cerco with the new ad at position 0 and ring/highlight class applied",
+    "Frontend: Mi Candido (apply-button) click succeeds",
+    "Frontend: logout-button clears session and returns to auth page"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% (5/5)"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "Test user already existed from prior curl; used login instead of register. Mobile viewport (390x844) used. New ad title verified at top card after Offro submit; ring/highlight class detected on first card confirming the 'magic' UX."
+}
