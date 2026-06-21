@@ -1,0 +1,124 @@
+{
+  "theme": "Archetype 6: Vibrant Play (Pop-Parioli Roman style)",
+  "mode": "light",
+  "colors": {
+    "background": "#fefbeb",
+    "primary": "#d97706",
+    "primary_hover": "#b45309",
+    "price_tag_bg": "#22c55e",
+    "price_tag_text": "#ffffff",
+    "card_bg": "#ffffff",
+    "text_main": "#1c1917",
+    "text_muted": "#57534e",
+    "border_color": "#1c1917"
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Outfit, sans-serif",
+      "weight": "800",
+      "letter_spacing": "tracking-tight"
+    },
+    "body": {
+      "font_family": "DM Sans, sans-serif",
+      "weight": "500",
+      "letter_spacing": "tracking-normal"
+    },
+    "price_tag": {
+      "font_family": "Outfit, sans-serif",
+      "weight": "900",
+      "size": "text-2xl sm:text-3xl"
+    }
+  },
+  "spacing_and_layout": {
+    "container_padding": "p-4 sm:p-6",
+    "card_gap": "gap-6",
+    "card_padding": "p-5 sm:p-6",
+    "border_radius": "rounded-3xl",
+    "button_radius": "rounded-full"
+  },
+  "surfaces_and_shadows": {
+    "pop_card": "bg-white border-2 border-stone-900 shadow-[6px_6px_0px_#d97706] transition-transform hover:-translate-y-1 hover:shadow-[8px_8px_0px_#d97706]",
+    "price_badge": "bg-[#22c55e] text-white border-2 border-stone-900 shadow-[3px_3px_0px_#1c1917] rounded-2xl rotate-2",
+    "neighborhood_badge": "bg-amber-100 text-amber-900 border-2 border-stone-900 rounded-full px-3 py-1 text-xs sm:text-sm font-bold shadow-[2px_2px_0px_#1c1917]",
+    "primary_button": "bg-[#d97706] text-white font-bold text-lg border-2 border-stone-900 shadow-[4px_4px_0px_#1c1917] hover:shadow-[2px_2px_0px_#1c1917] hover:translate-y-[2px] transition-all",
+    "input_field": "bg-white border-2 border-stone-900 rounded-2xl px-4 py-3 focus:outline-none focus:ring-4 focus:ring-amber-500/30 font-medium"
+  },
+  "components": {
+    "top_toggle": {
+      "description": "A pill-shaped toggle at the top to switch between 'Cerco Spicci' and 'Offro Spicci'.",
+      "style": "bg-stone-200 border-2 border-stone-900 rounded-full p-1 flex relative shadow-[4px_4px_0px_#1c1917]",
+      "active_state": "bg-[#d97706] text-white rounded-full shadow-sm",
+      "inactive_state": "text-stone-600 hover:text-stone-900"
+    },
+    "job_card": {
+      "description": "Card representing a job ad in the 'Cerco Spicci' view.",
+      "layout": "Flex column, gap-3. Header row with neighborhood badge on the left, giant green price tag on the absolute top-right (slightly overflowing the border for a sticker effect). Title below header, then description, then the 'Mi Candido' button at the bottom.",
+      "data_testid": "job-card"
+    },
+    "offer_form": {
+      "description": "Clean, bold form for 'Offro Spicci'.",
+      "fields": [
+        {"name": "neighborhood", "type": "select", "options": ["Prati", "Parioli", "Centro Storico"]},
+        {"name": "title", "type": "text", "placeholder": "Es. Fila alle poste"},
+        {"name": "cash", "type": "number", "placeholder": "€ Cash offerto"},
+        {"name": "notes", "type": "textarea", "placeholder": "Dettagli del lavoretto..."}
+      ],
+      "submit_action": "Pubblica Annuncio. Upon success, auto-switch toggle to 'Cerco Spicci' and prepend the new ad to the list.",
+      "data_testid_form": "offer-job-form",
+      "data_testid_submit": "submit-job-button"
+    },
+    "auth_screen": {
+      "description": "Playful login/register screen to enter the app.",
+      "layout": "Centered card with app logo ('Du' Spicci'), inputs for email/password, and a bold login button.",
+      "image_url": "https://images.pexels.com/photos/20392476/pexels-photo-20392476.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    }
+  },
+  "seeded_data": {
+    "ads": [
+      {
+        "id": "1",
+        "neighborhood": "Parioli",
+        "title": "Fila alle Poste di Viale Parioli",
+        "description": "Devo ritirare una raccomandata ma ho il padel alle 10. Mi serve qualcuno che faccia la fila per me dalle 8:30.",
+        "price": "20 €"
+      },
+      {
+        "id": "2",
+        "neighborhood": "Centro Storico",
+        "title": "Dog-sitting per un Carlino pigro",
+        "description": "Il mio carlino Gastone deve fare una passeggiata in Piazza Navona ma io lavoro. Basta mezz'ora, non corre.",
+        "price": "15 €"
+      },
+      {
+        "id": "3",
+        "neighborhood": "Prati",
+        "title": "Montaggio mobiletto IKEA",
+        "description": "Ho comprato la scarpiera Hemnes e mi sono arreso alla pagina 3. Serve eroe munito di avvitatore.",
+        "price": "35 €"
+      },
+      {
+        "id": "4",
+        "neighborhood": "Parioli",
+        "title": "Ripetizioni Latino liceo",
+        "description": "Versione di Cicerone per domani, mio figlio è disperato. Zona Luiss. Almeno 2 ore.",
+        "price": "50 €"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Build a mobile-first UI with React and Tailwind CSS. The app must look incredible on mobile, with large touch targets.",
+    "The background must be #fefbeb (cream).",
+    "Use 'Outfit' for headings and 'DM Sans' for body text. Add these from Google Fonts if needed.",
+    "Implement the top toggle switcher (Cerco Spicci / Offro Spicci). Use state to control the active view.",
+    "For the 'Cerco Spicci' board, map over the seeded_data.ads initially. Render the 'job_card' as defined. Ensure the green price tag (#22c55e) is huge, rotated slightly (rotate-2), and sits in the top right.",
+    "For the 'Offro Spicci' form, use large rounded inputs with a neo-brutalist border style (border-2 border-stone-900).",
+    "Implement the 'Magia': When the 'Pubblica Annuncio' form is submitted, append the new ad to the ads list in state, and automatically switch the active view back to 'Cerco Spicci' so the user sees their new ad at the top.",
+    "Ensure all interactive elements have data-testid attributes.",
+    "Create a simple JWT auth flow (Login/Register screens) before the user can access the main board. Use the provided Colosseum image for the auth screen background or as a playful header illustration."
+  ],
+  "accessibility_and_interactions": {
+    "focus_states": "focus:ring-4 focus:ring-amber-500/50 focus:outline-none",
+    "hover_states": "Hover states should lift elements up (translate-y) and increase the neo-brutalist offset shadow for a tactile pop-art feel.",
+    "motion": "Use Framer Motion for smooth tab switching between Cerco and Offro views (e.g., a quick slide or fade)."
+  }
+}
