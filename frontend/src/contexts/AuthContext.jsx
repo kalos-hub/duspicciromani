@@ -15,6 +15,24 @@ export function AuthProvider({ children }) {
 
   useEffect(() => { loadMe(); }, [loadMe]);
 
+  // SSE listener
+  useEffect(() => {
+    if (!user || user === undefined) return;
+    const token = localStorage.getItem("duspicci_token");
+    if (!token) return;
+    const url = `${process.env.REACT_APP_BACKEND_URL}/api/events?token=${encodeURIComponent(token)}`;
+    const es = new EventSource(url);
+    es.onmessage = (e) => {
+      try {
+        const ev = JSON.parse(e.data);
+        if (ev.type === "message") {
+          import("sonner").then(({toast}) => toast(`💬 ${ev.from_name}: ${ev.text.slice(0,60)}`));
+        }
+      } catch {}
+    };
+    return () => es.close();
+  }, [user]);
+
   const login = async (email, password) => {
     try {
       const { data } = await api.post("/auth/login", { email, password });

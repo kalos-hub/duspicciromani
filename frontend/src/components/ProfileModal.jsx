@@ -28,6 +28,17 @@ export const ProfileModal = ({ userId, onClose }) => {
             </div>
             <h3 className="font-display text-2xl mt-4 text-stone-900">{u.first_name} {u.last_name}</h3>
             <p className="text-stone-600 text-sm mt-1">{u.age} anni · {u.email}</p>
+            {u.online && (
+              <div className="mt-2 inline-flex items-center gap-1.5 bg-emerald-500 text-white text-xs font-bold uppercase px-2.5 py-1 rounded-full border-2 border-stone-900">
+                <span className="w-2 h-2 rounded-full bg-white animate-pulse"/>Online ora
+              </div>
+            )}
+            {u.ratings_count > 0 && (
+              <div className="mt-2 text-sm text-stone-700">
+                <span className="font-display text-lg text-[#d97706]">{u.avg_rating?.toFixed(1)}</span> ⭐ Spicci
+                <span className="text-stone-500 ml-1">({u.ratings_count})</span>
+              </div>
+            )}
             <div className="mt-3 inline-flex items-center gap-1.5 bg-amber-100 border-[2px] border-stone-900 rounded-full px-3 py-1 text-xs font-bold uppercase">membro Du' Spicci</div>
           </div>
         )}

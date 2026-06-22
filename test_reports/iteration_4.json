@@ -1,0 +1,28 @@
+{
+  "summary": "Backend smoke test for Du'Spicci v4 (SSE + extend + rate + online). UserPublic schema and online indicator are working, but the four new v4 endpoints (/api/events, /api/threads/{id}/extend, /api/threads/{id}/rate, /api/users/{id}/ratings) are NOT implemented in /app/backend/server.py — all return HTTP 404. Most v4 acceptance criteria cannot be tested until backend code is added.",
+  "tested_scope": ["backend"],
+  "passed": [
+    "POST /api/auth/register returns AuthResponse with UserPublic that includes new fields online=false, avg_rating=null, ratings_count=0",
+    "GET /api/auth/me returns UserPublic schema with online/avg_rating/ratings_count fields present",
+    "last_seen touch works: after calling /auth/me then GET /api/users/{my_id} returns online=true (<60s rule)",
+    "GET /api/threads still works (returns [] for fresh user)"
+  ],
+  "failed": [
+    {"area": "SSE notifications", "issue": "GET /api/events?token=... returns HTTP 404 (route not defined)", "evidence": "curl /api/events?token=<valid> -> HTTP 404 application/json. grep of server.py shows no /events route.", "priority": "HIGH"},
+    {"area": "Chat extension", "issue": "POST /api/threads/{id}/extend returns HTTP 404 (route not defined)", "evidence": "curl -X POST /api/threads/fake/extend -> {\"detail\":\"Not Found\"} HTTP 404. grep server.py: no extend endpoint, only ThreadOut model fields.", "priority": "HIGH"},
+    {"area": "Rating system", "issue": "POST /api/threads/{id}/rate returns HTTP 404 (route not defined)", "evidence": "curl -X POST /api/threads/fake/rate stars=5 -> {\"detail\":\"Not Found\"} HTTP 404. No rate endpoint in server.py.", "priority": "HIGH"},
+    {"area": "Rating list", "issue": "GET /api/users/{id}/ratings returns HTTP 404 (route not defined)", "evidence": "curl /api/users/fake/ratings -> {\"detail\":\"Not Found\"} HTTP 404. No /ratings endpoint in server.py.", "priority": "HIGH"},
+    {"area": "Legacy creds", "issue": "Legacy user test@duspicci.it/test1234 no longer logs in (401 Email o password non corretti). Not blocking — registered a fresh user to proceed.", "evidence": "POST /api/auth/login -> 401", "priority": "LOW"}
+  ],
+  "action_items": [
+    "Implement SSE endpoint GET /api/events (accepting token via Authorization header AND ?token= query param) returning text/event-stream, wired to _push helper.",
+    "Implement POST /api/threads/{id}/extend with logic: only participants; if both confirm -> set extended=true, expires_at += 24h, clear extend_requests; second extend after extended -> 400 'Già estesa una volta'.",
+    "Implement POST /api/threads/{id}/rate: 400 if not expired ('Puoi valutare solo dopo la scadenza della chat'), 400 if duplicate ('Hai già lasciato una valutazione'), 403 if non-participant, validate stars 1-5 and comment ≤2500 chars; insert into ratings collection; recompute and persist avg_rating + ratings_count on target user.",
+    "Implement GET /api/users/{id}/ratings returning list of RatingOut.",
+    "Verify /api/threads ThreadOut already returns extended, extend_pending_mine, extend_pending_other, can_rate, rated (model OK, but cannot be verified end-to-end without extend/rate endpoints)."
+  ],
+  "success_rate": {"backend": "30%", "frontend": "skipped"},
+  "retest_needed": true,
+  "full_testing_deferred": true,
+  "test_credentials": "Legacy test@duspicci.it/test1234 returns 401 — flagged. Used freshly-registered t1tester<ts>@duspicci.it/test1234 for this run."
+}

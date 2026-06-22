@@ -3,12 +3,13 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-import os, uuid, logging, bcrypt, jwt
+import os, uuid, logging, bcrypt, jwt, asyncio, json
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
-from collections import Counter
+from collections import Counter, defaultdict
 
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request
+from fastapi.responses import StreamingResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
@@ -49,7 +50,10 @@ class UserPublic(BaseModel):
     first_name: str
     last_name: str
     age: int
-    photo: Optional[str] = None  # base64 data URL
+    photo: Optional[str] = None
+    online: bool = False
+    avg_rating: Optional[float] = None
+    ratings_count: int = 0
 
 class RegisterIn(BaseModel):
     email: EmailStr
@@ -123,6 +127,25 @@ class ThreadOut(BaseModel):
     other_user_name: str
     expires_at: str
     expired: bool
+    extended: bool = False
+    extend_pending_mine: bool = False
+    extend_pending_other: bool = False
+    can_rate: bool = False
+    rated: bool = False
+
+class RatingIn(BaseModel):
+    stars: int = Field(ge=1, le=5)
+    comment: str = Field(max_length=2500, default="")
+
+class RatingOut(BaseModel):
+    id: str
+    thread_id: str
+    from_id: str
+    from_name: str
+    to_id: str
+    stars: int
+    comment: str
+    created_at: str
 
 
 # ---------- App ----------
@@ -130,27 +153,49 @@ app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 
-async def get_current_user(request: Request) -> dict:
+_subscribers: dict[str, list[asyncio.Queue]] = defaultdict(list)
+
+async def _push(user_id: str, event: dict) -> None:
+    for q in list(_subscribers.get(user_id, [])):
+        try: q.put_nowait(event)
+        except Exception: pass
+
+
+async def get_current_user(request: Request, touch: bool = True) -> dict:
     auth = request.headers.get("Authorization", "")
     token = auth[7:] if auth.startswith("Bearer ") else None
     if not token: token = request.cookies.get("access_token")
+    if not token:
+        token = request.query_params.get("token")  # for SSE
     if not token: raise HTTPException(401, "Non autenticato")
     try:
         payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
         user = await db.users.find_one({"id": payload["sub"]})
         if not user: raise HTTPException(401, "Utente non trovato")
+        if touch:
+            await db.users.update_one({"id": user["id"]},
+                {"$set": {"last_seen": datetime.now(timezone.utc).isoformat()}})
         return user
     except jwt.PyJWTError:
         raise HTTPException(401, "Token non valido")
 
 
-def _user_public(u: dict) -> UserPublic:
+def _is_online(u: dict) -> bool:
+    ls = u.get("last_seen")
+    if not ls: return False
+    try: return (datetime.now(timezone.utc) - datetime.fromisoformat(ls)).total_seconds() < 60
+    except Exception: return False
+
+def _user_public(u: dict) -> "UserPublic":
     return UserPublic(
         id=u["id"], email=u["email"],
         first_name=u.get("first_name", u.get("name","")),
         last_name=u.get("last_name", ""),
         age=u.get("age", 0),
-        photo=u.get("photo"))
+        photo=u.get("photo"),
+        online=_is_online(u),
+        avg_rating=u.get("avg_rating"),
+        ratings_count=u.get("ratings_count", 0))
 
 
 def _full_name(u: dict) -> str:
@@ -334,17 +379,23 @@ async def reject_app(app_id: str, user: dict = Depends(get_current_user)):
 
 
 # ---------- Threads / Messages ----------
-def _thread_to_out(t: dict, current_user_id: str) -> ThreadOut:
+def _thread_to_out(t: dict, current_user_id: str, rated_set: set | None = None) -> ThreadOut:
     is_owner = t["owner_id"] == current_user_id
     other_id = t["applicant_id"] if is_owner else t["owner_id"]
     other_name = t["applicant_name"] if is_owner else t["owner_name"]
     expires = datetime.fromisoformat(t["expires_at"])
+    expired = datetime.now(timezone.utc) > expires
+    extends = t.get("extend_requests", [])
     return ThreadOut(
         id=t["id"], application_id=t["application_id"],
         job_title=t["job_title"], job_neighborhood=t["job_neighborhood"], job_price=t["job_price"],
         other_user_id=other_id, other_user_name=other_name,
-        expires_at=t["expires_at"],
-        expired=datetime.now(timezone.utc) > expires)
+        expires_at=t["expires_at"], expired=expired,
+        extended=t.get("extended", False),
+        extend_pending_mine=current_user_id in extends,
+        extend_pending_other=other_id in extends,
+        can_rate=expired,
+        rated=(rated_set is not None and t["id"] in rated_set))
 
 
 @api_router.get("/threads", response_model=List[ThreadOut])
@@ -382,6 +433,8 @@ async def send_message(thread_id: str, body: MessageIn, user: dict = Depends(get
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.messages.insert_one(msg)
+    other_id = t["applicant_id"] if t["owner_id"] == user["id"] else t["owner_id"]
+    await _push(other_id, {"type":"message","thread_id":thread_id,"from_name":msg["from_name"],"text":msg["text"]})
     return msg
 
 
