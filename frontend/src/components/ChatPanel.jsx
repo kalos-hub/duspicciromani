@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, X, Clock, Loader2, Plus } from "lucide-react";
+import { Send, X, Clock, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import api from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { RatingForm } from "./RatingForm";
+import { ProfileModal } from "./ProfileModal";
 
 const fmtCountdown = (ms) => {
   if (ms <= 0) return "scaduta";
@@ -20,6 +21,7 @@ export const ChatPanel = ({ thread, onClose }) => {
   const [sending, setSending] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [rated, setRated] = useState(thread.rated || false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const bottomRef = useRef(null);
 
   const loadThread = async () => {
@@ -52,6 +54,15 @@ export const ChatPanel = ({ thread, onClose }) => {
     } catch (e) { toast.error(e.response?.data?.detail || "Errore"); }
   };
 
+  const deleteThread = async () => {
+    if (!window.confirm("Eliminare questa chat? Operazione irreversibile.")) return;
+    try {
+      await api.delete(`/threads/${t.id}`);
+      toast.success("Chat eliminata");
+      onClose();
+    } catch (e) { toast.error(e.response?.data?.detail || "Errore"); }
+  };
+
   const send = async (e) => {
     e.preventDefault();
     if (!text.trim() || expired) return;
@@ -70,20 +81,26 @@ export const ChatPanel = ({ thread, onClose }) => {
       <div className="bg-white border-[2.5px] border-stone-900 sm:rounded-3xl rounded-t-3xl pop-shadow w-full max-w-xl flex flex-col" style={{maxHeight:"90vh", height:"90vh"}}
         onClick={e=>e.stopPropagation()}>
         <div className="p-4 border-b-[2.5px] border-stone-900 flex items-center justify-between gap-3 bg-amber-50 sm:rounded-t-3xl rounded-t-3xl">
-          <div className="min-w-0">
-            <div className="font-display text-lg text-stone-900 truncate">{t.other_user_name}</div>
+          <button onClick={()=>setProfileOpen(true)} data-testid="chat-avatar" className="shrink-0 w-11 h-11 rounded-full border-[2.5px] border-stone-900 overflow-hidden bg-amber-100 btn-press">
+            {t.other_user_photo ? <img src={t.other_user_photo} alt={t.other_user_name} className="w-full h-full object-cover"/> :
+              <div className="w-full h-full flex items-center justify-center font-display text-sm text-stone-700">{(t.other_user_name||"?").charAt(0)}</div>}
+          </button>
+          <div className="min-w-0 flex-1">
+            <button onClick={()=>setProfileOpen(true)} className="font-display text-lg text-stone-900 truncate underline-offset-2 hover:underline block text-left max-w-full">{t.other_user_name}</button>
+            {t.other_user_bio && <div className="text-[11px] text-stone-700 truncate italic">{t.other_user_bio}</div>}
             <div className="text-xs text-stone-600 truncate">{t.job_title} · {t.job_neighborhood} · {t.job_price}€</div>
           </div>
           {!expired && !t.extended && (
             <button data-testid="extend-thread" onClick={extend}
-              className="inline-flex items-center gap-1 bg-amber-100 text-stone-900 text-xs font-bold px-2.5 py-1 rounded-full border-2 border-stone-900 btn-press"
-              title={t.extend_pending_mine ? "Attendi l'altro" : "+24h se entrambi"}>
-              <Plus size={12} strokeWidth={3}/>24h{t.extend_pending_mine?" ✓":""}{t.extend_pending_other && !t.extend_pending_mine?" •":""}
+              className="inline-flex items-center gap-1 bg-amber-100 text-stone-900 text-xs font-bold px-2.5 py-1 rounded-full border-2 border-stone-900 btn-press">
+              <Plus size={12} strokeWidth={3}/>24h{t.extend_pending_mine?" ✓":""}
             </button>
           )}
           <div className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border-2 border-stone-900 ${expired?"bg-red-500 text-white":"bg-emerald-500 text-white"}`}>
             <Clock size={12} strokeWidth={3}/>{fmtCountdown(expiresMs)}
           </div>
+          <button onClick={deleteThread} data-testid="delete-thread" title="Elimina chat"
+            className="w-9 h-9 rounded-full border-[2px] border-stone-900 bg-red-500 text-white flex items-center justify-center btn-press"><Trash2 size={16} strokeWidth={2.5}/></button>
           <button onClick={onClose} className="w-9 h-9 rounded-full border-[2px] border-stone-900 bg-white flex items-center justify-center btn-press"><X size={18} strokeWidth={2.5}/></button>
         </div>
 
@@ -114,6 +131,7 @@ export const ChatPanel = ({ thread, onClose }) => {
             {sending ? <Loader2 className="w-4 h-4 animate-spin"/> : <Send size={18} strokeWidth={2.5}/>}
           </button>
         </form>
+        {profileOpen && <ProfileModal userId={t.other_user_id} onClose={()=>setProfileOpen(false)}/>}
       </div>
     </div>
   );

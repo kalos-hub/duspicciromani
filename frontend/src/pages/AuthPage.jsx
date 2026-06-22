@@ -13,6 +13,7 @@ export default function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [photo, setPhoto] = useState(null);
+  const [bio, setBio] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submit = async (e) => {
@@ -27,7 +28,7 @@ export default function AuthPage() {
     const res = tab === "login"
       ? await login(email, password)
       : await register({ first_name: firstName, last_name: lastName,
-                         age: parseInt(age,10), email, password, photo });
+                         age: parseInt(age,10), email, password, photo, bio });
     setLoading(false);
     if (!res.ok) toast.error(res.error || "Errore");
   };
@@ -68,6 +69,9 @@ export default function AuthPage() {
                 </div>
                 <input data-testid="age-input" type="number" placeholder="Età" min="14" max="110" value={age} onChange={e=>setAge(e.target.value)}
                   className="w-full bg-amber-50 border-[2.5px] border-stone-900 rounded-2xl px-3 py-2.5 font-medium focus:outline-none focus:ring-4 focus:ring-amber-500/40"/>
+                <textarea data-testid="bio-input" value={bio} onChange={e=>setBio(e.target.value)} maxLength={300} rows={2}
+                  placeholder="Bio breve (es. 'Studente di Lettere, paziente coi bambini, monto IKEA')"
+                  className="w-full bg-amber-50 border-[2.5px] border-stone-900 rounded-2xl px-3 py-2.5 font-medium focus:outline-none focus:ring-4 focus:ring-amber-500/40 resize-none"/>
               </>
             )}
             <input data-testid="email-input" type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)}

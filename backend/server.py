@@ -24,6 +24,7 @@ db = client[os.environ['DB_NAME']]
 
 QUARTIERI_SET = set(ROMA_QUARTIERI)
 JWT_ALGORITHM = "HS256"
+JOB_TTL_HOURS = 72
 CHAT_TTL_HOURS = 48
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,7 @@ class RegisterIn(BaseModel):
     last_name: str = Field(min_length=1, max_length=40)
     age: int = Field(ge=14, le=110)
     photo: str = Field(min_length=20, description="data URL (image/jpeg base64)")
+    bio: str = Field(max_length=300, default="")
 
 class LoginIn(BaseModel):
     email: EmailStr
@@ -125,6 +127,8 @@ class ThreadOut(BaseModel):
     job_price: int
     other_user_id: str
     other_user_name: str
+    other_user_photo: Optional[str] = None
+    other_user_bio: Optional[str] = None
     expires_at: str
     expired: bool
     extended: bool = False
@@ -195,7 +199,8 @@ def _user_public(u: dict) -> "UserPublic":
         photo=u.get("photo"),
         online=_is_online(u),
         avg_rating=u.get("avg_rating"),
-        ratings_count=u.get("ratings_count", 0))
+        ratings_count=u.get("ratings_count", 0),
+        bio=u.get("bio"))
 
 
 def _full_name(u: dict) -> str:
@@ -214,7 +219,7 @@ async def register(body: RegisterIn):
     doc = {
         "id": user_id, "email": email,
         "first_name": body.first_name.strip(), "last_name": body.last_name.strip(),
-        "age": body.age, "photo": body.photo,
+        "age": body.age, "photo": body.photo, "bio": body.bio.strip(),
         "password_hash": hash_password(body.password),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -270,7 +275,11 @@ async def list_jobs(neighborhood: str | None = None):
     except Exception as e:
         logger.error(f"Supabase list error: {e}")
         raise HTTPException(502, "Impossibile leggere annunci")
-    return rows
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=JOB_TTL_HOURS)
+    def _alive(r):
+        try: return datetime.fromisoformat(r["created_at"]) >= cutoff
+        except Exception: return True
+    return [r for r in rows if _alive(r)]
 
 
 @api_router.post("/jobs", response_model=JobOut)
