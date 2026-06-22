@@ -52,3 +52,24 @@ Magic: after publishing, app auto-switches to "Cerco" and new ad appears on top.
 - Frontend: /app/frontend/src/App.js, src/pages/AuthPage.jsx, src/pages/BoardPage.jsx,
   src/components/ModeToggle.jsx, JobCard.jsx, OfferForm.jsx,
   src/contexts/AuthContext.jsx, src/lib/api.js
+
+## v2 (2026-02) — Supabase migration + enhancements
+
+### Backend
+- Jobs CRUD migrato da MongoDB → **Supabase REST (PostgREST)** via httpx wrapper `/app/backend/supabase_jobs.py`.
+- Auth resta su MongoDB (users collection).
+- Aggiunto endpoint `GET /api/neighborhoods` (37 quartieri di Roma curati).
+- `POST /api/jobs` valida quartiere contro lista ufficiale (400 altrimenti).
+- `POST /api/jobs/{id}/apply` accetta `{tip:int}` per la Mancia opzionale.
+- Auto-seed dei 4 annunci romani su Supabase al primo avvio (idempotente).
+- Tabella `public.jobs` creata via Supabase Management API + PAT.
+
+### Frontend
+- OfferForm: dropdown completo con 37 quartieri.
+- BoardPage: filtro `data-testid="filter-neighborhood"` chiama `/api/jobs?neighborhood=X`.
+- MancaModal: nuovo componente con opzioni `--/+1€/+2€/+5€` collegate al backend.
+- JobCard: il "Mi Candido" apre la MancaModal.
+
+### Env vars
+- SUPABASE_URL=https://kpkzevkjpuwqqvyzrozf.supabase.co
+- SUPABASE_ANON_KEY=<service-role secret key sb_secret_...> (bypassa RLS lato backend)

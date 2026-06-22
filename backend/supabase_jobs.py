@@ -1,12 +1,10 @@
-"""Supabase REST/PostgREST wrapper. Reads/writes the `jobs` table.
-
-Direct HTTP calls (bypasses supabase-py which doesn't yet accept the
-new `sb_secret_...` key format).
-"""
+"""Supabase REST/PostgREST wrapper. Reads/writes the `jobs` table."""
 import os
 import uuid
 import httpx
 from datetime import datetime, timezone, timedelta
+
+from roma_geo import ROMA_QUARTIERI_COORDS
 
 
 def _base() -> str:
@@ -78,9 +76,7 @@ def insert_job(doc: dict) -> dict:
     r = httpx.post(
         f"{_base()}/{JOBS}",
         headers=_headers(prefer="return=representation"),
-        json=doc,
-        timeout=15,
-    )
+        json=doc, timeout=15)
     _raise_for(r)
     data = r.json()
     if not data:
@@ -90,11 +86,8 @@ def insert_job(doc: dict) -> dict:
 
 def get_job(job_id: str) -> dict | None:
     r = httpx.get(
-        f"{_base()}/{JOBS}",
-        headers=_headers(),
-        params={"select": "*", "id": f"eq.{job_id}", "limit": "1"},
-        timeout=15,
-    )
+        f"{_base()}/{JOBS}", headers=_headers(),
+        params={"select": "*", "id": f"eq.{job_id}", "limit": "1"}, timeout=15)
     _raise_for(r)
     rows = r.json()
     return rows[0] if rows else None
@@ -102,33 +95,25 @@ def get_job(job_id: str) -> dict | None:
 
 def seed_if_empty() -> None:
     r = httpx.get(
-        f"{_base()}/{JOBS}",
-        headers=_headers(prefer="count=exact"),
-        params={"select": "id", "limit": "1"},
-        timeout=15,
-    )
+        f"{_base()}/{JOBS}", headers=_headers(prefer="count=exact"),
+        params={"select": "id", "limit": "1"}, timeout=15)
     _raise_for(r)
-    cr = r.headers.get("content-range", "")  # e.g. "0-0/4" or "*/0"
+    cr = r.headers.get("content-range", "")
     total = int(cr.split("/")[-1]) if "/" in cr else 0
     if total > 0:
         return
     base = datetime.now(timezone.utc)
     rows = []
     for i, j in enumerate(SEED_JOBS):
+        lat, lng = ROMA_QUARTIERI_COORDS.get(j["neighborhood"], (41.9028, 12.4964))
         rows.append({
             "id": str(uuid.uuid4()),
-            "neighborhood": j["neighborhood"],
-            "title": j["title"],
-            "description": j["description"],
-            "price": j["price"],
-            "owner_id": "seed",
-            "owner_name": j["owner_name"],
+            "neighborhood": j["neighborhood"], "title": j["title"],
+            "description": j["description"], "price": j["price"],
+            "owner_id": "seed", "owner_name": j["owner_name"],
+            "lat": lat, "lng": lng,
             "created_at": (base - timedelta(minutes=i + 1)).isoformat(),
         })
-    ins = httpx.post(
-        f"{_base()}/{JOBS}",
-        headers=_headers(prefer="return=minimal"),
-        json=rows,
-        timeout=20,
-    )
+    ins = httpx.post(f"{_base()}/{JOBS}", headers=_headers(prefer="return=minimal"),
+                    json=rows, timeout=20)
     _raise_for(ins)

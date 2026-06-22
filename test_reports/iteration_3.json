@@ -1,0 +1,31 @@
+{
+  "summary": "Backend-only smoke test for Du'Spicci v3. All 21 checks passed (auth+profile, geo/counts/coords, jobs centroid fill, applications lifecycle pending/accept/reject, dedup, ownership checks, 48h thread creation, messages w/ participant guard, Mancia removal).",
+  "tested_scope": ["backend", "auth", "integration"],
+  "passed": [
+    "GET /api/neighborhoods/counts returns {total, counts:{Q:N}}",
+    "GET /api/neighborhoods/coords returns 37 {name,lat,lng}",
+    "POST /api/auth/register accepts first_name/last_name/age/photo; returns UserPublic with those fields (no password_hash)",
+    "POST /api/auth/login works",
+    "GET /api/users/{id} returns public profile (no password_hash leak)",
+    "POST /api/jobs fills lat/lng from quartiere centroid when not provided (Parioli => 41.921, 12.494)",
+    "POST /api/jobs/{id}/apply creates pending application",
+    "Duplicate apply by same user returns same record (no dup)",
+    "POST /api/jobs/{id}/apply on OWN job returns 400",
+    "POST apply ignores extra tip/mancia body fields",
+    "GET /api/applications/inbox returns apps to my jobs",
+    "GET /api/applications/mine returns my apps",
+    "POST /api/applications/{id}/accept by non-owner returns 403",
+    "POST /api/applications/{id}/accept by owner creates thread, status=accepted, returns thread_id",
+    "GET /api/threads returns my threads with expires_at + expired bool",
+    "POST /api/threads/{id}/messages works for owner AND applicant",
+    "Non-participant POST message returns 403",
+    "POST /api/applications/{id}/reject sets status=rejected",
+    "GET /api/jobs response contains no 'mancia' field"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100% (21/21)", "frontend": "not tested (skipped per request)"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "Test domain '.test' is reserved by pydantic EmailStr — used @duspicci.it for test accounts. Backend correctly rejects reserved TLDs in registration."
+}
