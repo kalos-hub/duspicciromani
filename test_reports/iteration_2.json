@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 2 testing of Du' Spicci backend (Supabase-backed jobs) + frontend (37 quartieri, filter, Mancia modal). 9/9 backend checks passed. Frontend login → board → filter Parioli (5→2 cards) → Offro form with 38-option dropdown → submit Trastevere job → auto-switched back to Cerco with new ad at index 0 → Mancia modal with 4 tip options → apply tip=2 → success toast with Italian Mancia copy. Two minor non-blocking findings noted.",
+  "tested_scope": ["frontend", "backend", "auth", "integration"],
+  "passed": [
+    "GET /api/neighborhoods returns 37 quartieri (HTTP 200)",
+    "GET /api/jobs returns 4 seeded rows from Supabase (HTTP 200)",
+    "GET /api/jobs?neighborhood=Parioli returns only 2 Parioli rows",
+    "GET /api/jobs?neighborhood=Tutti behaves same as no filter (4 rows)",
+    "POST /api/jobs without auth returns 401",
+    "POST /api/jobs with invalid quartiere ('FakeQuartiere') returns 400 'Quartiere non valido'",
+    "POST /api/jobs with auth + valid body returns 200 JobOut and persists to Supabase; new ad appears at index 0 sorted DESC by created_at",
+    "POST /api/jobs/{id}/apply with tip=2 returns ok=true, message contains 'Mancia opzionale: 2€ (sblocca priorità Spicci Pro)', tip=2",
+    "POST /api/jobs/{id}/apply with tip=0 returns ok=true, message does NOT contain 'Mancia opzionale'",
+    "Frontend login (test@duspicci.it / test1234) lands on board (data-testid=board-page)",
+    "data-testid='filter-neighborhood' is a <select> with 38 options ('Tutti i quartieri' + 37 quartieri)",
+    "Selecting Parioli in filter reduces visible job-cards from 5 to 2",
+    "Toggle Offro reveals data-testid='neighborhood-select' with 38 options including Trastevere",
+    "Submit Offro form auto-switches back to Cerco; new ad 'Frontend test Trastevere' appears at index 0",
+    "Clicking 'Mi Candido' opens data-testid='mancia-modal' with 4 tip options (tip-0, tip-1, tip-2, tip-5)",
+    "Choosing tip-2 + confirm-apply posts /api/jobs/{id}/apply and shows success toast 'Candidatura inviata a Tester! Mancia opzionale: 2€ (sblocca priorità Spicci Pro).'"
+  ],
+  "failed": [
+    {
+      "area": "frontend - 'newly published' badge text",
+      "issue": "Review request expected an 'Appena pubblicato' text ring/badge on the new ad after Offro submit. The visual orange ring is present on the just-published card (visible in screenshot), but the literal text string 'Appena pubblicato' was not found anywhere in the DOM (count=0). Either the copy is implemented differently or the text label is missing.",
+      "evidence": "page.locator('text=Appena pubblicato').count() === 0 after publishing 'Frontend test Trastevere'; visual ring is rendered correctly.",
+      "priority": "LOW"
+    },
+    {
+      "area": "frontend - data-testid naming for job cards / apply buttons",
+      "issue": "Review request referenced selectors like [data-testid^='job-card-'] and [data-testid^='apply-button-']. Actual DOM uses bare 'job-card' / 'apply-button' (repeated, no index suffix). Tests still pass via .nth() but querying a specific card by id is not currently possible.",
+      "evidence": "All data-testids on board: ['board-page','logout-button','mode-toggle','toggle-cerco','toggle-offro','filter-neighborhood','job-list','job-card','job-card-price','apply-button', ...] (job-card / apply-button each repeated 6x with no suffix).",
+      "priority": "LOW"
+    }
+  ],
+  "action_items": [
+    "Optional: append job id to per-card testids (e.g. data-testid={`job-card-${id}`} and data-testid={`apply-button-${id}`}) so individual cards can be targeted in tests.",
+    "Optional: if the 'Appena pubblicato' text badge is intended, ensure the literal string is rendered (currently only the orange highlight ring is visible)."
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100% (core flows); 2 LOW cosmetic findings"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}
