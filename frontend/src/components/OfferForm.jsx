@@ -3,9 +3,7 @@ import { toast } from "sonner";
 import { Euro, Loader2 } from "lucide-react";
 import api, { formatApiError } from "../lib/api";
 
-const NEIGHBORHOODS = ["Prati", "Parioli", "Centro Storico"];
-
-export const OfferForm = ({ onPublished }) => {
+export const OfferForm = ({ neighborhoods, onPublished }) => {
   const [neighborhood, setNeighborhood] = useState("");
   const [title, setTitle] = useState("");
   const [price, setPrice] = useState("");
@@ -27,12 +25,11 @@ export const OfferForm = ({ onPublished }) => {
         price: parseInt(price, 10),
       });
       toast.success("Annuncio pubblicato!");
-      // Reset
       setNeighborhood("");
       setTitle("");
       setPrice("");
       setNotes("");
-      onPublished(data); // magic switch
+      onPublished(data);
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));
     } finally {
@@ -55,31 +52,25 @@ export const OfferForm = ({ onPublished }) => {
         </p>
       </div>
 
-      {/* Neighborhood */}
       <div>
         <label className="font-display text-sm uppercase tracking-wider text-stone-700">
           Quartiere
         </label>
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          {NEIGHBORHOODS.map((n) => (
-            <button
-              key={n}
-              type="button"
-              data-testid={`neighborhood-${n.replace(/\s+/g, "-").toLowerCase()}`}
-              onClick={() => setNeighborhood(n)}
-              className={`py-3 px-2 rounded-2xl border-[2.5px] border-stone-900 font-bold text-sm sm:text-base transition-all btn-press ${
-                neighborhood === n
-                  ? "bg-[#d97706] text-white pop-shadow-ink-sm"
-                  : "bg-amber-50 text-stone-800 hover:bg-amber-100"
-              }`}
-            >
+        <select
+          data-testid="neighborhood-select"
+          value={neighborhood}
+          onChange={(e) => setNeighborhood(e.target.value)}
+          className="mt-2 w-full bg-amber-50 border-[2.5px] border-stone-900 rounded-2xl px-4 py-3 text-base font-bold focus:outline-none focus:ring-4 focus:ring-amber-500/40 appearance-none cursor-pointer"
+        >
+          <option value="">Scegli il quartiere…</option>
+          {neighborhoods.map((n) => (
+            <option key={n} value={n}>
               {n}
-            </button>
+            </option>
           ))}
-        </div>
+        </select>
       </div>
 
-      {/* Title */}
       <div>
         <label className="font-display text-sm uppercase tracking-wider text-stone-700">
           Il lavoro
@@ -95,7 +86,6 @@ export const OfferForm = ({ onPublished }) => {
         />
       </div>
 
-      {/* Price */}
       <div>
         <label className="font-display text-sm uppercase tracking-wider text-stone-700">
           Cash che offri
@@ -118,7 +108,6 @@ export const OfferForm = ({ onPublished }) => {
         </div>
       </div>
 
-      {/* Notes */}
       <div>
         <label className="font-display text-sm uppercase tracking-wider text-stone-700">
           Note <span className="text-stone-400 font-normal normal-case">(opzionale)</span>
@@ -134,7 +123,6 @@ export const OfferForm = ({ onPublished }) => {
         />
       </div>
 
-      {/* Submit */}
       <button
         type="submit"
         data-testid="submit-job-button"

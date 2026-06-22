@@ -10,18 +10,34 @@ import logging
 import bcrypt
 import jwt
 from datetime import datetime, timezone, timedelta
-from typing import Optional, List
+from typing import List
 
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
+import supabase_jobs
 
-# ---------- DB ----------
+
+# ---------- DB (Mongo for users/auth only) ----------
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+
+
+# ---------- Roma quartieri (curated) ----------
+ROMA_QUARTIERI = [
+    "Appio-Latino", "Aurelio", "Aventino", "Balduina", "Centocelle",
+    "Centro Storico", "Cinecittà", "Della Vittoria", "Esquilino", "EUR",
+    "Flaminio", "Garbatella", "Gianicolense", "Marconi", "Monte Sacro",
+    "Monteverde", "Monti", "Nomentano", "Ostiense", "Parioli",
+    "Pigneto", "Pinciano", "Portuense", "Prati", "Prenestino",
+    "Salario", "San Giovanni", "San Lorenzo", "San Paolo", "Talenti",
+    "Testaccio", "Tiburtino", "Tor di Quinto", "Trastevere", "Trieste",
+    "Trionfale", "Tuscolano",
+]
+QUARTIERI_SET = set(ROMA_QUARTIERI)
 
 
 # ---------- Auth helpers ----------
@@ -82,6 +98,9 @@ class JobOut(BaseModel):
     owner_name: str
     created_at: str
 
+class ApplyIn(BaseModel):
+    tip: int = Field(ge=0, le=100, default=0)
+
 
 # ---------- App ----------
 app = FastAPI()
@@ -109,7 +128,7 @@ async def get_current_user(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Token non valido")
 
 
-# ---------- Auth routes ----------
+# ---------- Auth routes (MongoDB) ----------
 @api_router.post("/auth/register", response_model=AuthResponse)
 async def register(body: RegisterIn):
     email = body.email.lower().strip()
@@ -150,17 +169,27 @@ async def me(user: dict = Depends(get_current_user)):
     return UserPublic(id=user["id"], email=user["email"], name=user["name"])
 
 
-# ---------- Jobs routes ----------
+# ---------- Misc ----------
+@api_router.get("/neighborhoods", response_model=List[str])
+async def neighborhoods():
+    return ROMA_QUARTIERI
+
+
+# ---------- Jobs routes (Supabase) ----------
 @api_router.get("/jobs", response_model=List[JobOut])
-async def list_jobs():
-    cursor = db.jobs.find({}, {"_id": 0}).sort("created_at", -1)
-    jobs = await cursor.to_list(500)
-    return jobs
+async def list_jobs(neighborhood: str | None = None):
+    n = neighborhood if neighborhood and neighborhood != "Tutti" else None
+    try:
+        rows = supabase_jobs.list_jobs(n)
+    except Exception as e:
+        logger.error(f"Supabase list error: {e}")
+        raise HTTPException(status_code=502, detail="Impossibile leggere annunci da Supabase")
+    return rows
 
 
 @api_router.post("/jobs", response_model=JobOut)
 async def create_job(body: JobIn, user: dict = Depends(get_current_user)):
-    if body.neighborhood not in ("Prati", "Parioli", "Centro Storico"):
+    if body.neighborhood not in QUARTIERI_SET:
         raise HTTPException(status_code=400, detail="Quartiere non valido")
     job_id = str(uuid.uuid4())
     doc = {
@@ -173,79 +202,38 @@ async def create_job(body: JobIn, user: dict = Depends(get_current_user)):
         "owner_name": user["name"],
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    await db.jobs.insert_one(doc)
-    return JobOut(**doc)
+    try:
+        inserted = supabase_jobs.insert_job(doc)
+    except Exception as e:
+        logger.error(f"Supabase insert error: {e}")
+        raise HTTPException(status_code=502, detail="Pubblicazione su Supabase fallita")
+    return inserted
 
 
 @api_router.post("/jobs/{job_id}/apply")
-async def apply_job(job_id: str, user: dict = Depends(get_current_user)):
-    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+async def apply_job(job_id: str, body: ApplyIn, user: dict = Depends(get_current_user)):
+    try:
+        job = supabase_jobs.get_job(job_id)
+    except Exception as e:
+        logger.error(f"Supabase get error: {e}")
+        raise HTTPException(status_code=502, detail="Lettura annuncio fallita")
     if not job:
         raise HTTPException(status_code=404, detail="Annuncio non trovato")
-    return {"ok": True, "message": f"Candidatura inviata a {job.get('owner_name','Anonimo')}!"}
+    msg = f"Candidatura inviata a {job.get('owner_name','Anonimo')}!"
+    if body.tip > 0:
+        msg += f" Mancia opzionale: {body.tip}€ (sblocca priorità Spicci Pro)."
+    return {"ok": True, "message": msg, "tip": body.tip}
 
 
-# ---------- Seed ----------
-SEED_JOBS = [
-    {
-        "neighborhood": "Parioli",
-        "title": "Fila alle Poste di Viale Parioli",
-        "description": "Devo ritirare una raccomandata ma ho il padel alle 10. Mi serve qualcuno che faccia la fila per me dalle 8:30.",
-        "price": 20,
-        "owner_name": "Francesca P.",
-    },
-    {
-        "neighborhood": "Centro Storico",
-        "title": "Dog-sitting per un Carlino pigro",
-        "description": "Il mio carlino Gastone deve fare una passeggiata in Piazza Navona ma io lavoro. Basta mezz'ora, non corre.",
-        "price": 15,
-        "owner_name": "Marco L.",
-    },
-    {
-        "neighborhood": "Prati",
-        "title": "Montaggio mobiletto IKEA",
-        "description": "Ho comprato la scarpiera Hemnes e mi sono arreso alla pagina 3. Serve eroe munito di avvitatore.",
-        "price": 35,
-        "owner_name": "Giulia R.",
-    },
-    {
-        "neighborhood": "Parioli",
-        "title": "Ripetizioni di Latino - Liceo",
-        "description": "Versione di Cicerone per domani, mio figlio è disperato. Zona Luiss. Almeno 2 ore.",
-        "price": 50,
-        "owner_name": "Anna T.",
-    },
-]
-
-
-async def seed_jobs():
-    count = await db.jobs.count_documents({"seeded": True})
-    if count >= len(SEED_JOBS):
-        return
-    await db.jobs.delete_many({"seeded": True})
-    base_ts = datetime.now(timezone.utc)
-    docs = []
-    for i, j in enumerate(SEED_JOBS):
-        ts = (base_ts - timedelta(minutes=i + 1)).isoformat()
-        docs.append({
-            "id": str(uuid.uuid4()),
-            "neighborhood": j["neighborhood"],
-            "title": j["title"],
-            "description": j["description"],
-            "price": j["price"],
-            "owner_id": "seed",
-            "owner_name": j["owner_name"],
-            "created_at": ts,
-            "seeded": True,
-        })
-    await db.jobs.insert_many(docs)
-
-
+# ---------- Startup ----------
 @app.on_event("startup")
 async def on_startup():
     await db.users.create_index("email", unique=True)
-    await db.jobs.create_index("created_at")
-    await seed_jobs()
+    try:
+        supabase_jobs.seed_if_empty()
+        logger.info("Supabase jobs: ready")
+    except Exception as e:
+        logger.warning(f"Supabase seed skipped: {e}")
 
 
 @app.on_event("shutdown")
