@@ -1,21 +1,31 @@
-"""Supabase client wrapper. Reads/writes the `jobs` table via PostgREST."""
+"""Supabase REST/PostgREST wrapper. Reads/writes the `jobs` table.
+
+Direct HTTP calls (bypasses supabase-py which doesn't yet accept the
+new `sb_secret_...` key format).
+"""
 import os
 import uuid
+import httpx
 from datetime import datetime, timezone, timedelta
-from supabase import create_client, Client
-
-_supabase: Client | None = None
-
-def get_supabase() -> Client:
-    global _supabase
-    if _supabase is None:
-        url = os.environ["SUPABASE_URL"]
-        key = os.environ["SUPABASE_ANON_KEY"]
-        _supabase = create_client(url, key)
-    return _supabase
 
 
-JOBS_TABLE = "jobs"
+def _base() -> str:
+    return os.environ["SUPABASE_URL"].rstrip("/") + "/rest/v1"
+
+
+def _headers(prefer: str | None = None) -> dict:
+    key = os.environ["SUPABASE_ANON_KEY"]
+    h = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
+    if prefer:
+        h["Prefer"] = prefer
+    return h
+
+
+JOBS = "jobs"
 
 
 SEED_JOBS = [
@@ -50,33 +60,57 @@ SEED_JOBS = [
 ]
 
 
+def _raise_for(resp: httpx.Response) -> None:
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Supabase {resp.status_code}: {resp.text[:300]}")
+
+
 def list_jobs(neighborhood: str | None = None) -> list[dict]:
-    sb = get_supabase()
-    q = sb.table(JOBS_TABLE).select("*").order("created_at", desc=True).limit(500)
+    params = {"select": "*", "order": "created_at.desc", "limit": "500"}
     if neighborhood:
-        q = q.eq("neighborhood", neighborhood)
-    res = q.execute()
-    return res.data or []
+        params["neighborhood"] = f"eq.{neighborhood}"
+    r = httpx.get(f"{_base()}/{JOBS}", headers=_headers(), params=params, timeout=15)
+    _raise_for(r)
+    return r.json()
 
 
 def insert_job(doc: dict) -> dict:
-    sb = get_supabase()
-    res = sb.table(JOBS_TABLE).insert(doc).execute()
-    if not res.data:
-        raise RuntimeError("Supabase insert returned no data")
-    return res.data[0]
+    r = httpx.post(
+        f"{_base()}/{JOBS}",
+        headers=_headers(prefer="return=representation"),
+        json=doc,
+        timeout=15,
+    )
+    _raise_for(r)
+    data = r.json()
+    if not data:
+        raise RuntimeError("Supabase insert returned no row")
+    return data[0]
 
 
 def get_job(job_id: str) -> dict | None:
-    sb = get_supabase()
-    res = sb.table(JOBS_TABLE).select("*").eq("id", job_id).limit(1).execute()
-    return res.data[0] if res.data else None
+    r = httpx.get(
+        f"{_base()}/{JOBS}",
+        headers=_headers(),
+        params={"select": "*", "id": f"eq.{job_id}", "limit": "1"},
+        timeout=15,
+    )
+    _raise_for(r)
+    rows = r.json()
+    return rows[0] if rows else None
 
 
 def seed_if_empty() -> None:
-    sb = get_supabase()
-    res = sb.table(JOBS_TABLE).select("id", count="exact").limit(1).execute()
-    if (res.count or 0) > 0:
+    r = httpx.get(
+        f"{_base()}/{JOBS}",
+        headers=_headers(prefer="count=exact"),
+        params={"select": "id", "limit": "1"},
+        timeout=15,
+    )
+    _raise_for(r)
+    cr = r.headers.get("content-range", "")  # e.g. "0-0/4" or "*/0"
+    total = int(cr.split("/")[-1]) if "/" in cr else 0
+    if total > 0:
         return
     base = datetime.now(timezone.utc)
     rows = []
@@ -91,4 +125,10 @@ def seed_if_empty() -> None:
             "owner_name": j["owner_name"],
             "created_at": (base - timedelta(minutes=i + 1)).isoformat(),
         })
-    sb.table(JOBS_TABLE).insert(rows).execute()
+    ins = httpx.post(
+        f"{_base()}/{JOBS}",
+        headers=_headers(prefer="return=minimal"),
+        json=rows,
+        timeout=20,
+    )
+    _raise_for(ins)
