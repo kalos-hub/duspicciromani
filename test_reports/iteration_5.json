@@ -1,0 +1,22 @@
+{
+  "summary": "Iteration 5 RETEST of Du' Spicci v4: all 4 previously-404 endpoints (SSE /api/events, extend, rate, user ratings) now fully functional. 100% pass.",
+  "tested_scope": ["backend", "integration"],
+  "passed": [
+    "GET /api/events?token=<valid> -> 200 text/event-stream; receives 'ready' then 'message' event when other participant posts (verified live via threaded SSE listener while sending message)",
+    "POST /api/threads/{id}/extend call 1 (owner) -> 200, extend_pending_mine=true, extended=false",
+    "POST /api/threads/{id}/extend call 2 (applicant) -> 200, extended=true, expires_at shifted +24h (2026-06-24 -> 2026-06-25)",
+    "POST /api/threads/{id}/extend call 3 after extension -> 400 'Già estesa una volta'",
+    "POST /api/threads/{id}/rate before expiry -> 400 'Puoi valutare solo dopo la scadenza della chat'",
+    "POST /api/threads/{id}/rate after force-expiring via mongo update -> 200, rating created with stars=4",
+    "POST /api/threads/{id}/rate duplicate from same user -> 400 'Hai già lasciato una valutazione'",
+    "POST /api/threads/{id}/rate by non-participant -> 403 'Non autorizzato'",
+    "Target user avg_rating updated to 4.0 and ratings_count=1 after rating",
+    "GET /api/users/{id}/ratings -> 200, returns list of 1 rating with correct schema"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100%", "frontend": "skipped (per request)"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "SSE also delivered a 'thread_update' event during extend flow — bonus signal confirmed working. MongoDB used directly to force-expire thread for rating test (per problem statement). Setup: 2 fresh users registered, job posted, applied, accepted to create thread."
+}

@@ -406,6 +406,71 @@ async def my_threads(user: dict = Depends(get_current_user)):
     return [_thread_to_out(t, user["id"]) for t in rows]
 
 
+@api_router.post("/threads/{thread_id}/extend", response_model=ThreadOut)
+async def extend_thread(thread_id: str, user: dict = Depends(get_current_user)):
+    t = await _load_thread_for_user(thread_id, user["id"])
+    if t.get("extended"): raise HTTPException(400, "Già estesa una volta")
+    requests_set = set(t.get("extend_requests", []))
+    requests_set.add(user["id"])
+    other = t["applicant_id"] if t["owner_id"] == user["id"] else t["owner_id"]
+    update = {"extend_requests": list(requests_set)}
+    if other in requests_set:
+        new_exp = (datetime.fromisoformat(t["expires_at"]) + timedelta(hours=24)).isoformat()
+        update.update({"expires_at": new_exp, "extended": True, "extend_requests": []})
+    await db.threads.update_one({"id": thread_id}, {"$set": update})
+    t.update(update)
+    await _push(other, {"type":"thread_update","thread_id":thread_id})
+    return _thread_to_out(t, user["id"])
+
+
+@api_router.post("/threads/{thread_id}/rate", response_model=RatingOut)
+async def rate_thread(thread_id: str, body: RatingIn, user: dict = Depends(get_current_user)):
+    t = await _load_thread_for_user(thread_id, user["id"])
+    if datetime.now(timezone.utc) <= datetime.fromisoformat(t["expires_at"]):
+        raise HTTPException(400, "Puoi valutare solo dopo la scadenza della chat")
+    if await db.ratings.find_one({"thread_id": thread_id, "from_id": user["id"]}):
+        raise HTTPException(400, "Hai già lasciato una valutazione")
+    to_id = t["applicant_id"] if t["owner_id"] == user["id"] else t["owner_id"]
+    doc = {"id": str(uuid.uuid4()), "thread_id": thread_id,
+           "from_id": user["id"], "from_name": _full_name(user),
+           "to_id": to_id, "stars": body.stars, "comment": body.comment.strip(),
+           "created_at": datetime.now(timezone.utc).isoformat()}
+    await db.ratings.insert_one(doc)
+    agg = await db.ratings.aggregate([{"$match":{"to_id":to_id}},
+        {"$group":{"_id":None,"avg":{"$avg":"$stars"},"n":{"$sum":1}}}]).to_list(1)
+    if agg:
+        await db.users.update_one({"id": to_id},
+            {"$set": {"avg_rating": round(agg[0]["avg"],2), "ratings_count": agg[0]["n"]}})
+    return doc
+
+
+@api_router.get("/users/{user_id}/ratings", response_model=List[RatingOut])
+async def user_ratings(user_id: str, _: dict = Depends(get_current_user)):
+    rows = await db.ratings.find({"to_id": user_id}, {"_id":0}).sort("created_at",-1).to_list(200)
+    return rows
+
+
+@api_router.get("/events")
+async def sse_events(user: dict = Depends(get_current_user)):
+    q: asyncio.Queue = asyncio.Queue()
+    _subscribers[user["id"]].append(q)
+    async def stream():
+        try:
+            yield "event: ready\ndata: {}\n\n"
+            while True:
+                try:
+                    ev = await asyncio.wait_for(q.get(), timeout=25)
+                    yield f"data: {json.dumps(ev)}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"
+        finally:
+            try: _subscribers[user["id"]].remove(q)
+            except ValueError: pass
+    return StreamingResponse(stream(), media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+
 async def _load_thread_for_user(thread_id: str, user_id: str) -> dict:
     t = await db.threads.find_one({"id": thread_id}, {"_id":0})
     if not t: raise HTTPException(404, "Chat non trovata")
