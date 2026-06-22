@@ -1,12 +1,25 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { MapPin, Sparkles } from "lucide-react";
+import { MapPin, Sparkles, Clock } from "lucide-react";
 import api from "../lib/api";
 import { ProfileModal } from "./ProfileModal";
+
+const JOB_TTL_MS = 72 * 3600 * 1000;
+const fmtLeft = (ms) => {
+  if (ms <= 0) return "scaduto";
+  const h = Math.floor(ms / 3.6e6);
+  if (h >= 24) return `${Math.floor(h/24)}g ${h%24}h`;
+  if (h >= 1) return `${h}h`;
+  return `${Math.max(1, Math.floor(ms / 6e4))}m`;
+};
 
 export const JobCard = ({ job, isNew, onApplied }) => {
   const [profileOpen, setProfileOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(t); }, []);
+  const leftMs = new Date(job.created_at).getTime() + JOB_TTL_MS - now;
+  const urgent = leftMs < 12 * 3600 * 1000;
 
   const apply = async () => {
     setSending(true);
@@ -35,6 +48,9 @@ export const JobCard = ({ job, isNew, onApplied }) => {
             <MapPin className="w-3.5 h-3.5" strokeWidth={2.5}/>{job.neighborhood}
           </span>
           {isNew && <span className="bg-[#d97706] text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border-2 border-stone-900">Appena pubblicato</span>}
+          <span data-testid="job-countdown" className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border-2 border-stone-900 ${urgent?"bg-red-500 text-white":"bg-amber-50 text-stone-800"}`}>
+            <Clock size={11} strokeWidth={3}/>{leftMs<=0?"scaduto":`scade tra ${fmtLeft(leftMs)}`}
+          </span>
         </div>
 
         <h3 className="font-display text-xl sm:text-2xl text-stone-900 leading-tight pr-20 sm:pr-24 mb-2">{job.title}</h3>
