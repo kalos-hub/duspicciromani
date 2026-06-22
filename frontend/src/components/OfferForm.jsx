@@ -46,7 +46,7 @@ export const OfferForm = ({ neighborhoods, onPublished }) => {
       <div>
         <label className="font-display text-sm uppercase tracking-wider text-stone-700">Quartiere</label>
         <select data-testid="neighborhood-select" value={neighborhood} onChange={(e)=>handleNeighborhood(e.target.value)}
-          className="mt-2 w-full bg-amber-50 border-[2.5px] border-stone-900 rounded-2xl px-4 py-3 text-base font-bold focus:outline-none focus:ring-4 focus:ring-amber-500/40 cursor-pointer">
+          className="mt-2 w-full bg-amber-50 border-[2.5px] border-stone-900 rounded-2xl px-4 py-3 text-base font-bold focus:outline-none focus:ring-4 focus:ring-amber-500/40 cursor-pointer relative z-10">
           <option value="">Scegli il quartiere…</option>
           {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
         </select>

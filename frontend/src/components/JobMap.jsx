@@ -1,8 +1,15 @@
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from "react-leaflet";
 import L from "leaflet";
-import "leaflet/dist/leaflet.css";
 import { useState } from "react";
 import { ROMA_CENTER } from "../lib/roma";
+
+// Fix Leaflet default icon paths (CRA bundles break the default markers)
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+});
 
 // Custom ochre pin (SVG) — chunky neo-brutal romano
 const pinHtml = (price) => `
